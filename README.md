@@ -1,6 +1,4 @@
 # Robust(Dayanıklı) Regression Uygulama-1
- Crime Data ile suç tahminini 
- 
 Veri analizimiz için Alan Agresti ve Barbara Finlay tarafından yayınlanan Sosyal Bilimler için İstatistiksel Yöntemler, Üçüncü Baskı'da yer alan suç veri kümesini kullanacağız (Prentice Hall, 1997). 
 
 ### Değişkenler
