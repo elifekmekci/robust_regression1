@@ -3,6 +3,7 @@
 
 Veri analizimiz için Alan Agresti ve Barbara Finlay tarafından yayınlanan Sosyal Bilimler için İstatistiksel Yöntemler, Üçüncü Baskı'da yer alan suç veri kümesini kullanacağız (Prentice Hall, 1997). 
 
+(Kaynak:https://stats.idre.ucla.edu/stat/data/crime.dta)
 ### Değişkenler
 
 | Değişkenler|Açıklaması| 
