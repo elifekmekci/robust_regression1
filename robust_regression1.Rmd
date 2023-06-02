@@ -1,0 +1,107 @@
+---
+title: "Robust(Dayanıklı)  Regression Uygulama"
+author: "ELİF EKMEKCİ"
+date: "2023-06-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Veri Seti Açıklaması**
+
+Aşağıdaki veri analizimiz için Alan Agresti ve Barbara Finlay tarafından yayınlanan Sosyal Bilimler için İstatistiksel Yöntemler, Üçüncü Baskı'da yer alan suç veri kümesini kullanacağız (Prentice Hall, 1997). Değişkenler eyalet kimliği (sid), eyalet adı (state), 100.000 kişi başına şiddet suçları (crime), 1.000.000 kişi başına cinayet (murder), metropol alanlarda yaşayan nüfusun yüzdesi (pctmetro), nüfusun yüzdesi beyaz (pctwhite), lise veya üzeri eğitim almış nüfusun yüzdesi (pcths), yoksulluk sınırı altında yaşayan nüfusun yüzdesi (poverty) ve tek ebeveynli (single) nüfusun yüzdesidir. Veri setinde 51 gözlem mevcuttur. Bu çalışmada suçu tahmin etmek için poverty ve single değişkenlerini kullanacağız.
+
+```{r,warning=FALSE,message=FALSE}
+set.seed(300)
+library(foreign)
+cdata <- read.dta("https://stats.idre.ucla.edu/stat/data/crime.dta")
+summary(cdata)
+```
+
+En küçük kareler regresyonu yapalım
+```{r}
+summary(ols <- lm(crime~ poverty + single, data = cdata))
+```
+- **poverty** değişkeni anlamlı çıkmadı 
+- **NOT:** Bazen aykırı değer varlığı, bazı değişkenlerin kullanılmamasından kaynaklanabilir.
+
+Grafik çizdirelim ve aykırı değerleri daha net görelim
+```{r}
+library(faraway)
+plot(ols)
+```
+
+Bu grafiklerden 9, 25 ve 51 gözlemlerini modelimiz için muhtemelen sorunlu olarak tanımlayabiliriz. Bu gözlemlerin hangi durumları temsil ettiklerine bakalım
+
+```{r}
+cdata[c(9,25,51),]
+# hangi eyaletlerin sorunlu oldugunu bulmak icin bu kodu calistirdik
+```
+
+Cook tdistance değeri **2p/n** den büyük olan gözlemleri ve bunlara karşılık gelen standartlaştırılmış artıkları inceleyelim.
+
+```{r}
+library(MASS)
+d1 <- cooks.distance(ols)
+r <- stdres(ols) #stdress() uygun sekilde donusturulmus artiklarin vektoru
+a <- cbind(cdata,d1,r)
+a[d1>4/51,] 
+```
+
+**a[d1>4/51,]** kodu ile cook distance değeri 2p/n'den büyük olan gözlemleri ve bu gözlemlere karşılık gelen standartlaştırılmış artıkları buluyoruz
+
+Şimdi artıklara bakacağız. Artıkların mutlak değeri olan **rabs** adında yeni bir değişken üreteceğiz (çünkü artık işareti önemli değil). Daha sonra en yüksek mutlak artık değeri olan ilk 10 gözleme bakacağız.
+
+```{r}
+rabs <- abs(r)
+a <- cbind(cdata, d1, r, rabs)
+asorted <- a[order(-rabs), ]
+asorted[1:10, ]
+# en yuksek mutlak artik degeri olan ilk 10 gozlem 
+```
+**NOT:** Çıktıdan görüldüğü üzere en büyük artık değeri state = ms'de. Bu yüzden en küçük ağırlık bu eyalete verilecek.
+
+**NOT:** Robust regresyon için MASS kütüphanesindeki **rlm()** fonksiyonunu kullanıyoruz.
+
+
+Şimdi ilk sağlam regresyonumuzu gerçekleştirelim. Sağlam regresyon iteratif yeniden ağırlıklı en küçük kareler (IRLS) ile yapılır. Sağlam regresyon çalıştırma komutu MASS paketinde rlm'dir. IRLS için kullanılabilecek çeşitli ağırlık fonksiyonları vardır. Bu örnekte önce **Huber ağırlıklarını** kullanacağız. Daha sonra IRLS işlemi tarafından oluşturulan son ağırlıklara bakacağız.
+
+```{r}
+summary(rr.huber <- rlm(crime ~ poverty+single, data = cdata))
+summary(rlm(crime ~ poverty+single, data = cdata, psi = psi.huber))
+# default olarak huber agirliklandirilmasi yapiliyor
+# psi bilesenini yazmazsak rlm fonksiyonu otomatik olarak huber agirliklarinin kullanir
+```
+
+Kabaca, mutlak artık azaldıkça, ağırlığın arttığını görebiliriz. Başka bir deyişle, büyük kalıntıları olan vakalar düşük ağırlıklı olma eğilimindedir. Bu çıktı bize Mississippi gözleminin en düşük ağırlıklı olacağını gösteriyor. Florida da önemli ölçüde düşük ağırlıklı olacaktır. Yukarıda gösterilmeyen tüm gözlemler 1 ağırlığa sahiptir. OLS regresyonunda, tüm vakalar 1 ağırlığa sahiptir. Bu nedenle, robust(sağlam) regresyonda bire yakın ağırlığa sahip vakalar ne kadar fazla olursa, OLS ve robust(sağlam) regresyonların sonuçları o kadar yakın olur.
+
+
+**ÖZETLE** artığı fazla olanlara düşük ağırlık verilir. 53.satirdaki kod chunk çalıştırıldığında en fazla artık değerinin Mississippi'ye ait olduğu görülüyor. Dolayısyla en küçük ağırlık bu gözleme verilecek.
+
+
+Şimdi de **bisquare ağırlıklandırmasını** kullanarak regresyon modelimizi kuralım
+```{r}
+rr.bisquare <- rlm(crime ~ poverty+single, data = cdata, psi = psi.bisquare)
+summary(rr.bisquare)
+```
+
+Tekrar ağırlıklara bakalım
+```{r}
+biweights <- data.frame(state = cdata$state, resid = rr.bisquare$resid,weight = rr.bisquare$w )
+biweights2 <- biweights[order(rr.bisquare$w),]
+# order default olarak kucukten buyuge siraliyor
+biweights2[1:15,]
+```
+
+Mississippi'ye verilen ağırlığın, bisquare ağırlıklandırması ile Huber ağırlıklandırmasına göre elde edilenden çok daha düşük olduğunu ve bu iki farklı ağırlıklandırma yönteminden parametre tahminlerinin farklı olduğunu görebiliriz. 
+
+-Sıradan en küçük kareler regresyonu ve robust(sağlam) regresyonun sonuçlarını karşılaştırırken, sonuçlar çok farklıysa, robust(sağlam) regresyondan gelen sonuçlar kullanılır. 
+
+-Büyük farklılıklar, model parametrelerinin aykırı değerlerden büyük oranda etkilendiğini göstermektedir. 
+
+-Farklı ağırlıklandırmaların avantajları ve dezavantajları vardır. Huber ağırlıkları şiddetli aykırı değerlerde zorluklar yaşayabilir ve bisquare ağırlıklar yakınsamada zorluk yaşayabilir veya birden fazla çözüm verebilir.
+
+**SONUÇ:** İki modelin residual standart error'lerine bakıldığı zaman Huber yöntemi daha küçük residual standart error değerine sahiptir. Dolayısıyla Huber yöntemi ile kurulan model daha iyi performans gösterecektir.
+
